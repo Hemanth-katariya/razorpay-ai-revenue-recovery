@@ -1,81 +1,63 @@
 # Razorpay AI Buildathon Project
 
+## Project
+
+**AI Revenue Recovery Orchestrator** (working name: RecoverFlow) —
+a Failed-Subscription Recovery Agent.
+
+## Track & Product Status
+
+**Track 03 — AI Revenue Recovery is LOCKED.**
+Product direction is LOCKED. See `docs/decision.md` for the full
+rationale. Do not revisit track selection.
+
 ## Current Phase
 
-We are in the DISCOVERY and PLANNING phase.
+**Implementation.**
 
-Do NOT write application code until the track, product idea,
-product specification, architecture, evaluation strategy,
-and implementation plan have been reviewed and approved.
+Completed phases / docs:
 
-## Project Objective
-
-Build a technically strong submission for the Razorpay AI Buildathon
-that maximizes signal for the AI Builder Internship.
-
-Optimize for:
-
-- Real business value
-- Strong problem selection
-- Meaningful AI usage
-- Excellent engineering quality
-- Measurable outcomes
-- Reliability
-- Explainability
-- Bounded automation
-- Failure handling
-- Strong Razorpay relevance
-- Compelling 5-minute demonstration
-- High-quality public GitHub repository
+1. Competition analysis — `docs/competition-analysis.md`
+2. External research — `docs/research.md`
+3. Track comparison & decision — `docs/decision.md`
+4. Idea candidates — `docs/candidates.md`
+5. Recovery feasibility check — `docs/recovery-feasibility.md`
+6. Product specification — `docs/product-spec.md`
+7. Architecture — `docs/architecture.md`
 
 ## Source of Truth
 
-The official hackathon information is stored in:
+- Official hackathon requirements: `docs/hackathon.md`
+- Track/product decision & rationale: `docs/decision.md`
+- What Razorpay APIs can actually execute in Test Mode: `docs/recovery-feasibility.md`
+- Product spec: `docs/product-spec.md`
+- Architecture: `docs/architecture.md`
 
-docs/hackathon.md
+Clearly distinguish official requirements, external research,
+assumptions, and decisions. Do not invent hackathon requirements.
 
-Do not invent hackathon requirements.
+## Critical Rules (non-negotiable)
 
-Clearly distinguish between:
-- Official requirements
-- External research
-- Our assumptions
-- Our decisions
-
-## Planning Principles
-
-- Do not prematurely choose a track.
-- Analyze all five tracks before selecting one.
-- Reject generic LLM wrappers and shallow AI features.
-- AI must have a clearly justified role.
-- Prefer deterministic logic when AI is unnecessary.
-- Prefer measurable business outcomes.
-- Every autonomous money-related action must be bounded,
-  explainable, gated, and auditable.
-- Design explicit failure handling.
-- Avoid unnecessary complexity and over-engineering.
-- Prefer a strong MVP over excessive features.
-- Do not cherry-pick evaluation results.
+- **Never assume an UNCERTAIN Razorpay capability works.** Anything
+  marked UNCERTAIN in `docs/recovery-feasibility.md` must be verified
+  against live Test Mode behavior before being relied on — never coded
+  against as if confirmed.
+- **Never fake recovery.** Recovered-revenue outcomes must reflect real,
+  observed Razorpay state changes — never simulated, estimated, or
+  hardcoded to look successful.
+- **Test Mode only.** All Razorpay API calls and demos run against
+  Razorpay Test Mode. No live/production keys or charges.
+- Every autonomous money-related action must be bounded, explainable,
+  gated, and auditable.
+- Prefer deterministic logic when AI is unnecessary; AI's role
+  (diagnosis/decision) must be clearly justified, per `docs/product-spec.md`.
 
 ## Development Workflow
 
-Work in phases:
-
-1. Competition analysis
-2. External research
-3. Track comparison
-4. Idea generation
-5. Idea evaluation
-6. Track and product selection
-7. Product specification
-8. Architecture
-9. Evaluation strategy
-10. Implementation plan
-11. Implementation
-12. Testing
-13. Demo preparation
-
-Do not skip phases without explicit approval.
+Phases: competition analysis → external research → track comparison →
+idea generation → idea evaluation → track/product selection → product
+specification → architecture → evaluation strategy → **implementation**
+(current) → testing → demo preparation.
 
 ## Terminal and Git Learning Mode
 
@@ -94,5 +76,3 @@ Do not silently perform destructive operations.
 ## Documentation
 
 Important decisions should be documented in the docs/ directory.
-
-Do not create application source code during the discovery/planning phase.
