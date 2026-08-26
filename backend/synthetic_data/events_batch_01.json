@@ -1,0 +1,263 @@
+[
+  {
+    "id": "evt_0001",
+    "event": "payment.failed",
+    "created_at": "2026-01-01T00:00:00",
+    "payload": {
+      "subscription": {
+        "id": "sub_001",
+        "customer_ref": "Aditi Sharma",
+        "customer_email": "aditi.sharma@example.com",
+        "customer_contact": "+919800000001",
+        "outstanding_amount": 149900,
+        "invoice_id": "inv_0001"
+      },
+      "payment": {
+        "error_code": "BAD_REQUEST_ERROR",
+        "error_description": "Payment failed due to insufficient funds in the customer's bank account."
+      }
+    }
+  },
+  {
+    "id": "evt_0001",
+    "event": "payment.failed",
+    "created_at": "2026-01-01T00:01:00",
+    "payload": {
+      "subscription": {
+        "id": "sub_001",
+        "customer_ref": "Aditi Sharma",
+        "customer_email": "aditi.sharma@example.com",
+        "customer_contact": "+919800000001",
+        "outstanding_amount": 149900,
+        "invoice_id": "inv_0001"
+      },
+      "payment": {
+        "error_code": "BAD_REQUEST_ERROR",
+        "error_description": "Payment failed due to insufficient funds in the customer's bank account."
+      }
+    }
+  },
+  {
+    "id": "evt_0002",
+    "event": "payment.failed",
+    "created_at": "2026-01-01T00:05:00",
+    "payload": {
+      "subscription": {
+        "id": "sub_002",
+        "customer_ref": "Rohan Mehta",
+        "customer_email": "rohan.mehta@example.com",
+        "customer_contact": "+919800000002",
+        "outstanding_amount": 99900,
+        "invoice_id": "inv_0002"
+      },
+      "payment": {
+        "error_code": "GATEWAY_ERROR",
+        "error_description": "The card has expired. Please use a different card."
+      }
+    }
+  },
+  {
+    "id": "evt_0003",
+    "event": "payment.failed",
+    "created_at": "2026-01-01T00:10:00",
+    "payload": {
+      "subscription": {
+        "id": "sub_003",
+        "customer_ref": "Priya Nair",
+        "customer_email": "priya.nair@example.com",
+        "customer_contact": "+919800000003",
+        "outstanding_amount": 249900,
+        "invoice_id": "inv_0003"
+      },
+      "payment": {
+        "error_code": "GATEWAY_ERROR",
+        "error_description": "Transaction declined by the issuing bank. Please contact your bank for details."
+      }
+    }
+  },
+  {
+    "id": "evt_0004",
+    "event": "subscription.halted",
+    "created_at": "2026-01-01T00:15:00",
+    "payload": {
+      "subscription": {
+        "id": "sub_004",
+        "customer_ref": "Karan Verma",
+        "customer_email": "karan.verma@example.com",
+        "customer_contact": "+919800000004",
+        "outstanding_amount": 349900,
+        "invoice_id": "inv_0004"
+      },
+      "payment": {
+        "error_code": "SUBSCRIPTION_HALTED",
+        "error_description": "The subscription mandate is no longer valid; the customer's e-mandate needs to be re-authorized before further charges can be attempted."
+      }
+    }
+  },
+  {
+    "id": "evt_0005",
+    "event": "payment.failed",
+    "created_at": "2026-01-01T00:20:00",
+    "payload": {
+      "subscription": {
+        "id": "sub_005",
+        "customer_ref": "Neha Gupta",
+        "customer_email": "neha.gupta@example.com",
+        "customer_contact": "+919800000005",
+        "outstanding_amount": 59900,
+        "invoice_id": "inv_0005"
+      },
+      "payment": {
+        "error_code": "BAD_REQUEST_ERROR",
+        "error_description": "Insufficient funds in the customer's account at the time of billing."
+      }
+    }
+  },
+  {
+    "id": "evt_0006",
+    "event": "payment.failed",
+    "created_at": "2026-01-02T00:20:00",
+    "payload": {
+      "subscription": {
+        "id": "sub_005",
+        "customer_ref": "Neha Gupta",
+        "customer_email": "neha.gupta@example.com",
+        "customer_contact": "+919800000005",
+        "outstanding_amount": 59900,
+        "invoice_id": "inv_0005"
+      },
+      "payment": {
+        "error_code": "BAD_REQUEST_ERROR",
+        "error_description": "Insufficient funds in the customer's account at the time of billing (retry)."
+      }
+    }
+  },
+  {
+    "id": "evt_0007",
+    "event": "payment.failed",
+    "created_at": "2026-01-03T00:20:00",
+    "payload": {
+      "subscription": {
+        "id": "sub_005",
+        "customer_ref": "Neha Gupta",
+        "customer_email": "neha.gupta@example.com",
+        "customer_contact": "+919800000005",
+        "outstanding_amount": 59900,
+        "invoice_id": "inv_0005"
+      },
+      "payment": {
+        "error_code": "BAD_REQUEST_ERROR",
+        "error_description": "Insufficient funds in the customer's account at the time of billing (second retry)."
+      }
+    }
+  },
+  {
+    "id": "evt_0008",
+    "event": "payment.failed",
+    "created_at": "2026-01-04T00:20:00",
+    "payload": {
+      "subscription": {
+        "id": "sub_005",
+        "customer_ref": "Neha Gupta",
+        "customer_email": "neha.gupta@example.com",
+        "customer_contact": "+919800000005",
+        "outstanding_amount": 59900,
+        "invoice_id": "inv_0005"
+      },
+      "payment": {
+        "error_code": "BAD_REQUEST_ERROR",
+        "error_description": "Insufficient funds in the customer's account at the time of billing (third retry)."
+      }
+    }
+  },
+  {
+    "id": "evt_0009",
+    "event": "payment.failed",
+    "created_at": "2026-01-01T00:25:00",
+    "payload": {
+      "subscription": {
+        "id": "sub_006",
+        "customer_ref": "Sanjay Iyer",
+        "customer_email": "sanjay.iyer@example.com",
+        "customer_contact": "+919800000006",
+        "outstanding_amount": 149900,
+        "invoice_id": "inv_0006"
+      },
+      "payment": {
+        "error_code": "ERROR",
+        "error_description": "Payment could not be processed."
+      }
+    }
+  },
+  {
+    "id": "evt_0010",
+    "event": "payment.failed",
+    "created_at": "2026-01-01T00:30:00",
+    "payload": {
+      "subscription": {
+        "id": "sub_007",
+        "customer_ref": "Meera Pillai",
+        "customer_email": "meera.pillai@example.com",
+        "customer_contact": "+919800000007",
+        "outstanding_amount": 89900,
+        "invoice_id": "inv_0007"
+      },
+      "payment": {
+        "error_code": "BAD_REQUEST_ERROR",
+        "error_description": "The customer's account does not have sufficient balance to complete this payment."
+      }
+    }
+  },
+  {
+    "id": "evt_0011",
+    "event": "payment.failed",
+    "created_at": "2026-01-01T00:35:00",
+    "payload": {
+      "subscription": {
+        "id": "sub_008",
+        "customer_ref": "Big Ticket Client Pvt Ltd",
+        "customer_email": "billing@bigticketclient.example.com",
+        "customer_contact": "+919800000008",
+        "outstanding_amount": 15000000,
+        "invoice_id": "inv_0008"
+      },
+      "payment": {
+        "error_code": "GATEWAY_ERROR",
+        "error_description": "Transaction declined by the issuing bank due to a risk control rule."
+      }
+    }
+  },
+  {
+    "id": "evt_0012",
+    "event": "payment.failed",
+    "created_at": "2026-01-01T00:40:00",
+    "payload": {
+      "subscription": {
+        "id": "sub_009",
+        "customer_ref": "Farhan Ali",
+        "customer_email": "farhan.ali@example.com",
+        "customer_contact": "+919800000009",
+        "outstanding_amount": 119900,
+        "invoice_id": "inv_0009"
+      },
+      "payment": {
+        "error_code": "GATEWAY_ERROR",
+        "error_description": "Card expired -- expiry date on file has already passed."
+      }
+    }
+  },
+  {
+    "id": "evt_0013",
+    "event": "payment.captured",
+    "created_at": "2026-01-01T01:00:00",
+    "payload": {
+      "subscription": {
+        "id": "sub_001"
+      },
+      "payment": {
+        "amount": 149900,
+        "status": "captured"
+      }
+    }
+  }
+]
