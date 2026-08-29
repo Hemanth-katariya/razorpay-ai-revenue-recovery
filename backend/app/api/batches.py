@@ -32,6 +32,15 @@ class CloseBatchRequest(BaseModel):
     simulated_at: str | None = None
 
 
+@router.get("/batches")
+def list_batches(db: Session = Depends(get_db)):
+    batches = db.query(BatchRun).order_by(BatchRun.started_at.asc()).all()
+    return [
+        {"id": b.id, "label": b.label, "status": b.status, "started_at": b.started_at}
+        for b in batches
+    ]
+
+
 @router.post("/batches")
 def create_batch(req: CreateBatchRequest, db: Session = Depends(get_db)):
     batch_run = BatchRun(
