@@ -122,3 +122,28 @@ Real Razorpay webhooks carry no concept of our internal `batch_run_id`.
 parameter, set by whatever is replaying/relaying events (the replay
 script, or a demo harness). This keeps the ingestion endpoint stateless
 about "which batch is currently open" rather than guessing.
+
+## 7. `scripts/verify_actions.py` runs the §4.1 spike through app code, not ad hoc requests
+
+`product-spec.md` §4.1 requires the spike to make "one real Test Mode
+call" and record what happened before an action may become
+`API_VERIFIED`, but doesn't specify how that call should be made.
+Writing a one-off script that hits Razorpay directly (bypassing
+`app.razorpay_client`) would verify Razorpay's API, not this codebase's
+integration with it — a subtle difference, since a wrong parameter name
+in `razorpay_client.py` itself would then pass the spike anyway.
+
+**Decision:** `scripts/verify_actions.py` calls the exact same
+`app.razorpay_client.create_payment_link` /
+`send_payment_link_notification` / `resend_invoice_notification`
+functions the Executor calls at runtime. "Verified" therefore means
+"the code path that will actually execute was exercised for real,"
+not just "the endpoint exists." The script never writes
+`actions.status = API_VERIFIED` unless the real call it just made
+returned `ok=True` (`--promote` is a separate, explicit flag on top of
+that) — matching `registry.py`'s existing rule that only a human,
+after a real success, may promote a row. Discovery (`invoice --list`)
+uses a raw `razorpay.Client` directly since listing invoices generally
+isn't a method the running app needs — adding it to
+`app.razorpay_client` would violate architecture.md §7's "no
+general-purpose SDK wrapper with unused methods."
