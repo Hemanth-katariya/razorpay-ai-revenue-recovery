@@ -147,3 +147,50 @@ uses a raw `razorpay.Client` directly since listing invoices generally
 isn't a method the running app needs — adding it to
 `app.razorpay_client` would violate architecture.md §7's "no
 general-purpose SDK wrapper with unused methods."
+
+## 8. LLM provider is Gemini, not Claude as architecture.md originally specified
+
+`architecture.md`'s dependency-choices section named "LLM: Claude,
+structured/tool-call output" for the Diagnosis Service. During the §4.1
+verification pass, the Anthropic API key available for this project
+turned out to be an identity-linked key requiring an
+`anthropic-workspace-id` header (a multi-workspace-org key type, fixed
+by adding `ANTHROPIC_WORKSPACE_ID` support in `app/config.py` /
+`app/ai/diagnosis.py`) -- but once that was resolved, the Anthropic
+account had $0 API credit and no free trial credit, and adding paid
+credit wasn't an option for this project.
+
+**Decision:** switched the Diagnosis Service to Gemini
+(`google-genai` SDK, `gemini-2.5-flash` by default), using a free
+Google AI Studio API key (no billing account required). This changes
+only `app/ai/diagnosis.py`'s model-call mechanics and `app/config.py`'s
+env vars (`GEMINI_API_KEY` / `GEMINI_MODEL` replace `ANTHROPIC_*`) --
+every other part of architecture.md §4 is unchanged: the model still
+receives the allow-listed action set injected per-request (not baked
+into a static prompt), still must call a single named tool
+(`emit_diagnosis`) via forced function-calling rather than respond in
+prose, and its output still passes through the same
+`app/ai/schemas.py::DiagnosisOutput` Pydantic validation before the
+Policy Engine ever sees it. `docs/architecture.md`'s dependency-choices
+line was updated in place to say Gemini and point back here, rather
+than left to describe a provider the code no longer calls.
+
+The abandoned Anthropic-specific code (identity-linked-key handling,
+Anthropic tool-use response parsing) was removed rather than kept
+behind a fallback/feature-flag — there was no requirement driving a
+dual-provider design, and an unused code path is a liability per
+CLAUDE.md's "no backwards-compatibility shims" guidance, not a safety
+net.
+
+Model selection within Gemini went through several iterations before
+landing on `gemini-flash-lite-latest` as the default: `gemini-2.5-flash`
+(the initial pick) turned out to be deprecated for new accounts
+(404, "no longer available to new users"); the `gemini-flash-latest`
+alias and the pinned `gemini-3.6-flash` both hit real upstream 503s
+under high demand and a 20-requests/day free-tier cap respectively
+during testing. `gemini-flash-lite-latest` was chosen because Lite-tier
+models get a materially larger free daily quota, it's an alias (won't
+go stale the way a pinned version number did), and manual testing
+showed it classifies this task's failure payloads correctly at full
+confidence -- reliability across a whole demo mattered more here than
+a marginal quality gain from a heavier model.

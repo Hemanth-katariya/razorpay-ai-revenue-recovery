@@ -48,7 +48,11 @@ def replay(events_path: str, base_url: str, label: str, exposure_cap: int) -> No
             params={"batch_run_id": batch_run_id},
             data=body,
             headers={"Content-Type": "application/json", "X-Razorpay-Signature": signature},
-            timeout=30,
+            # Longer than the other calls in this script -- each webhook may
+            # block on a real Gemini call, which can be slow under upstream
+            # rate limiting/high demand (observed 503s taking 60s+ to
+            # surface from the SDK's own internal retries).
+            timeout=120,
         )
         last_simulated_at = event.get("created_at", last_simulated_at)
         print(f"POST id={event['id']} event={event['event']} -> {resp.status_code} {resp.json()}")

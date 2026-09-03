@@ -98,7 +98,7 @@ def test_duplicate_event_dropped(client):
 
 
 def test_diagnosis_failure_escalates_not_crashes(client):
-    """No ANTHROPIC_API_KEY is configured in the test environment, so the
+    """No GEMINI_API_KEY is configured in the test environment, so the
     Diagnosis Service call fails -- this must escalate gracefully, never
     crash the request (product-spec.md §7)."""
     batch = client.post("/batches", json={"label": "b", "exposure_cap_total": 1_000_000}).json()

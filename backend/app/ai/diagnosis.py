@@ -4,18 +4,27 @@ This is the only module in the codebase that calls the LLM. It never
 calls Razorpay and never writes to action_executions -- it only produces
 a recommendation that the Policy Engine and Executor independently gate
 and act on (product-spec.md §3).
+
+LLM provider is Gemini (google-genai), not Claude as architecture.md
+originally specified -- switched for cost reasons (no Anthropic API
+credit available during implementation); see
+docs/implementation-notes.md for the rationale. Structured output still
+uses forced function-calling (Gemini's tool_config mode="ANY"), matching
+architecture.md §4's "structured/tool-call output" requirement -- only
+the provider changed, not the mechanism.
 """
 from __future__ import annotations
 
 import json
 from dataclasses import dataclass
 
-import anthropic
+from google import genai
+from google.genai import types
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.actions import registry
-from app.config import ANTHROPIC_API_KEY, ANTHROPIC_MODEL, DIAGNOSIS_CONFIDENCE_THRESHOLD
+from app.config import DIAGNOSIS_CONFIDENCE_THRESHOLD, GEMINI_API_KEY, GEMINI_MODEL
 from app.ai.schemas import NO_ACTION_SENTINEL, DiagnosisOutput, tool_input_schema
 from app.db.models import DIAGNOSIS_CATEGORIES
 
@@ -64,13 +73,13 @@ def build_user_prompt(event_payload: dict, subscription_context: dict) -> str:
     )
 
 
-_client: anthropic.Anthropic | None = None
+_client: genai.Client | None = None
 
 
-def _get_client() -> anthropic.Anthropic:
+def _get_client() -> genai.Client:
     global _client
     if _client is None:
-        _client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        _client = genai.Client(api_key=GEMINI_API_KEY)
     return _client
 
 
@@ -79,22 +88,39 @@ def diagnose(
     *,
     event_payload: dict,
     subscription_context: dict,
-    client: anthropic.Anthropic | None = None,
+    client: genai.Client | None = None,
 ) -> DiagnosisCallResult:
     selectable = registry.list_selectable_for_ai(db)
     allowed_action_ids = [a.id for a in selectable]
     schema = tool_input_schema(allowed_action_ids)
     user_prompt = build_user_prompt(event_payload, subscription_context)
 
-    active_client = client or _get_client()
     try:
-        response = active_client.messages.create(
-            model=ANTHROPIC_MODEL,
-            max_tokens=1024,
-            system=_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": user_prompt}],
-            tools=[{"name": TOOL_NAME, "description": "Emit the structured diagnosis.", "input_schema": schema}],
-            tool_choice={"type": "tool", "name": TOOL_NAME},
+        active_client = client or _get_client()
+        response = active_client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=user_prompt,
+            config=types.GenerateContentConfig(
+                system_instruction=_SYSTEM_PROMPT,
+                max_output_tokens=1024,
+                tools=[
+                    types.Tool(
+                        function_declarations=[
+                            types.FunctionDeclaration(
+                                name=TOOL_NAME,
+                                description="Emit the structured diagnosis.",
+                                parameters_json_schema=schema,
+                            )
+                        ]
+                    )
+                ],
+                tool_config=types.ToolConfig(
+                    function_calling_config=types.FunctionCallingConfig(
+                        mode=types.FunctionCallingConfigMode.ANY,
+                        allowed_function_names=[TOOL_NAME],
+                    )
+                ),
+            ),
         )
     except Exception as exc:  # network/API error: treat as schema_invalid, never crash the pipeline
         return DiagnosisCallResult(
@@ -103,14 +129,15 @@ def diagnose(
             raw_model_output=f"<model call failed: {exc!r}>",
         )
 
-    tool_use = next((b for b in response.content if b.type == "tool_use"), None)
-    raw_output = json.dumps(tool_use.input) if tool_use is not None else json.dumps([b.model_dump() for b in response.content])
+    function_calls = getattr(response, "function_calls", None) or []
+    tool_call = next((fc for fc in function_calls if fc.name == TOOL_NAME), None)
+    raw_output = json.dumps(tool_call.args) if tool_call is not None else json.dumps(getattr(response, "text", None))
 
-    if tool_use is None:
+    if tool_call is None:
         return DiagnosisCallResult(success=False, escalation_reason="schema_invalid", raw_model_output=raw_output)
 
     try:
-        parsed = DiagnosisOutput.model_validate(tool_use.input)
+        parsed = DiagnosisOutput.model_validate(tool_call.args)
     except ValidationError as exc:
         return DiagnosisCallResult(
             success=False,

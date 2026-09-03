@@ -543,11 +543,16 @@ Only where the choice affects how the MVP is built:
   request/response models; the same validation mechanism serves
   both "reject malformed AI output" and "reject malformed webhook
   payloads."
-- **LLM: Claude, structured/tool-call output** — used only by the
+- **LLM: Gemini, structured/tool-call output** — used only by the
   Diagnosis Service (§4), called with the allow-listed action set
   injected per-request rather than baked into a static prompt, so
   the registry (§6) stays the single source of truth for what the
-  model is even allowed to recommend.
+  model is even allowed to recommend. Originally specified as Claude;
+  switched to Gemini during implementation for cost reasons (no
+  Anthropic API credit available) — see docs/implementation-notes.md
+  §8. Only the provider changed; forced function-calling still
+  produces the same structured, schema-validated output this line
+  originally required.
 - **No task queue / no Celery / no Redis** — the Batch Runner
   processes a synthetic file sequentially through the same
   synchronous ingestion path a real webhook would hit; introducing

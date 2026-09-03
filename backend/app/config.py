@@ -16,9 +16,12 @@ COOLDOWN_HOURS = float(os.environ.get("COOLDOWN_HOURS", "24"))
 PER_SUB_EXPOSURE_CAP = int(os.environ.get("PER_SUB_EXPOSURE_CAP", "10000000"))  # paise = INR 1,00,000
 
 # --- AI diagnosis (product-spec.md §3, architecture.md §4) ---
+# LLM provider is Gemini, not Claude as architecture.md §11 originally
+# stated -- switched for cost reasons (no Anthropic API credit available);
+# see docs/implementation-notes.md for the full rationale.
 DIAGNOSIS_CONFIDENCE_THRESHOLD = float(os.environ.get("DIAGNOSIS_CONFIDENCE_THRESHOLD", "0.6"))
-ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-5")
-ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-flash-lite-latest")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 # --- Executor retry policy (architecture.md §11) ---
 EXECUTOR_MAX_ATTEMPTS = 2  # one deterministic retry, per product-spec §7

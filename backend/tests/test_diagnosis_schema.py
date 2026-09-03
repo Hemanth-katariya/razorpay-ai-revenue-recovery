@@ -4,23 +4,25 @@ from app.ai import diagnosis
 from app.db.models import Action
 
 
-class FakeMessages:
+class FakeModels:
     def __init__(self, input_dict=None, no_tool_use=False, raise_error=False):
         self._input = input_dict
         self._no_tool_use = no_tool_use
         self._raise_error = raise_error
 
-    def create(self, **kwargs):
+    def generate_content(self, **kwargs):
         if self._raise_error:
             raise RuntimeError("simulated API failure")
         if self._no_tool_use:
-            return SimpleNamespace(content=[SimpleNamespace(type="text", text="not a tool call", model_dump=lambda: {"type": "text"})])
-        return SimpleNamespace(content=[SimpleNamespace(type="tool_use", input=self._input)])
+            return SimpleNamespace(function_calls=[], text="not a tool call")
+        return SimpleNamespace(
+            function_calls=[SimpleNamespace(name="emit_diagnosis", args=self._input)], text=None
+        )
 
 
 class FakeClient:
     def __init__(self, **kwargs):
-        self.messages = FakeMessages(**kwargs)
+        self.models = FakeModels(**kwargs)
 
 
 def _seed_actions(db):
