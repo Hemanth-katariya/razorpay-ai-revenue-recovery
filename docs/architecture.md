@@ -346,10 +346,16 @@ API (§1); the `razorpay_client` module is outbound-only.
   `INSERT ... ON CONFLICT DO NOTHING` at the DB layer means a
   replayed webhook cannot be processed twice, atomically, even under
   concurrent delivery.
-- `action_executions(subscription_id, event_id)` has a unique
-  constraint — even if application logic were ever wrong, the DB
-  itself refuses a second action for the same pair (acceptance
-  criterion #3).
+- `action_executions(subscription_id, event_id, attempt_no)` has a
+  unique constraint — even if application logic were ever wrong, the
+  DB itself refuses a duplicate insert of the same attempt (acceptance
+  criterion #3). This is per-attempt, not per-pair: the Executor's
+  one-retry rule (§11) legitimately writes up to two rows for the same
+  (subscription_id, event_id), one per attempt_no; the read-side
+  idempotency check (`action_already_executed`) is what stops a second
+  *execution sequence* from starting for an event already executed,
+  not the DB constraint alone. See docs/implementation-notes.md for a
+  bug this originally caused when the constraint omitted attempt_no.
 
 **State management:**
 - `subscriptions.current_state` holds exactly one of the states in

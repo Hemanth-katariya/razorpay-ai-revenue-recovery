@@ -53,12 +53,27 @@ def test_action_execution_unique_constraint_enforced_at_db_level(db_session):
     db_session.commit()
     assert action_already_executed(db_session, "sub_1", "evt_1") is True
 
-    # A second attempt at the same (subscription_id, event_id) pair must be
-    # rejected by the DB unique constraint, not just application logic.
+    # A second *retry attempt* (attempt_no=2) for the same (subscription_id,
+    # event_id) is legitimate -- the Executor's one-retry-then-escalate rule
+    # (architecture.md §11) writes exactly this -- so it must be accepted,
+    # and action_already_executed must still report True without crashing
+    # now that two rows exist for this pair.
     db_session.add(
         ActionExecution(
             subscription_id="sub_1", event_id="evt_1", action_id="resend_invoice_reminder",
             attempt_no=2, status="success", executed_at="2026-01-01T00:00:01",
+        )
+    )
+    db_session.commit()
+    assert action_already_executed(db_session, "sub_1", "evt_1") is True
+
+    # A duplicate of the *same* attempt_no for the same pair is what the
+    # unique constraint actually guards against (e.g. a race re-inserting
+    # attempt 1) -- that must still be rejected by the DB.
+    db_session.add(
+        ActionExecution(
+            subscription_id="sub_1", event_id="evt_1", action_id="resend_invoice_reminder",
+            attempt_no=1, status="success", executed_at="2026-01-01T00:00:02",
         )
     )
     try:
@@ -67,4 +82,4 @@ def test_action_execution_unique_constraint_enforced_at_db_level(db_session):
     except Exception:
         db_session.rollback()
         raised = True
-    assert raised, "DB should refuse a second action_executions row for the same (subscription_id, event_id)"
+    assert raised, "DB should refuse a duplicate action_executions row for the same (subscription_id, event_id, attempt_no)"

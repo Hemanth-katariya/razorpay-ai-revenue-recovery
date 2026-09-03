@@ -194,3 +194,49 @@ go stale the way a pinned version number did), and manual testing
 showed it classifies this task's failure payloads correctly at full
 confidence -- reliability across a whole demo mattered more here than
 a marginal quality gain from a heavier model.
+
+## 9. `action_executions` unique constraint omitted `attempt_no` -- a real bug, not a design gap
+
+This one wasn't a documentation ambiguity like the others in this file
+-- it was a genuine contradiction between architecture.md's own
+sections, only surfaced once a real webhook replay actually reached a
+failing `EXECUTING` state for the first time (which required the §4.1
+spike to have promoted an action to `API_VERIFIED`, which in turn
+required the Gemini switch above to get a working Diagnosis Service at
+all).
+
+architecture.md §3 documents `action_executions.attempt_no` as "1 or 2
+(one retry only)" and §11's error table says a second Executor failure
+means "both attempts recorded in `action_executions`" -- both describing
+two rows per (subscription_id, event_id). But §8 gave
+`action_executions(subscription_id, event_id)` a unique constraint with
+no `attempt_no`, and `tests/test_idempotency.py` had a test asserting
+that inserting a second attempt for the same pair *must* be rejected by
+the DB -- actively locking in the contradiction. `app/actions/executor.py`
+was written correctly per §3/§11 (it writes one row per attempt,
+1 then 2, on retry) but had never been exercised end-to-end through a
+real webhook before now: every prior run escalated at diagnosis before
+ever reaching the Executor, first because no action was `API_VERIFIED`
+yet (see §2 above), then because the Anthropic key never worked (see
+§8 above). The first real two-attempt failure (a synthetic event
+referencing a fake `invoice_id` that doesn't exist in Razorpay Test
+Mode, so both attempts genuinely failed) hit the constraint and crashed
+with an `IntegrityError` instead of recording the second attempt and
+escalating cleanly.
+
+**Decision:** added `attempt_no` to the unique constraint
+(`uq_action_exec_sub_event_attempt`), matching what §3/§11 always said
+should be possible. `app/core/idempotency.py::action_already_executed`
+was also fixed -- it used `scalar_one_or_none()`, which raises
+`MultipleResultsFound` once two legitimate rows exist for the same
+pair; changed to a plain existence check, since "does at least one
+attempt exist" (not "does exactly one exist") is what the idempotency
+gate (product-spec §5) actually needs. `tests/test_idempotency.py` was
+corrected to assert the real invariant: a second *attempt_no* for the
+same pair succeeds (and `action_already_executed` still reports True
+without crashing), while a duplicate of the *same* attempt_no is what
+the DB constraint actually rejects. architecture.md §8's wording was
+updated to state the constraint is per-attempt, not per-pair, and to
+clarify that preventing a second full execution *sequence* for an
+already-executed event is the read-side idempotency gate's job, not
+something the DB constraint alone guarantees.

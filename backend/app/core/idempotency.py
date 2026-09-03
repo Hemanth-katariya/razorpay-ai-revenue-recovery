@@ -20,8 +20,12 @@ def event_already_seen(db: Session, event_id: str) -> bool:
 
 
 def action_already_executed(db: Session, subscription_id: str, event_id: str) -> bool:
-    stmt = select(ActionExecution).where(
+    # Existence check, not scalar_one_or_none(): the Executor can legitimately
+    # write two rows for this pair (one per retry attempt, see
+    # ActionExecution's UniqueConstraint), so more than one match is
+    # expected, not an error.
+    stmt = select(ActionExecution.id).where(
         ActionExecution.subscription_id == subscription_id,
         ActionExecution.event_id == event_id,
-    )
-    return db.execute(stmt).scalar_one_or_none() is not None
+    ).limit(1)
+    return db.execute(stmt).first() is not None

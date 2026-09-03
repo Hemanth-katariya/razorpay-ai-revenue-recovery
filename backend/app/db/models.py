@@ -147,7 +147,16 @@ class GateResult(Base):
 
 class ActionExecution(Base):
     __tablename__ = "action_executions"
-    __table_args__ = (UniqueConstraint("subscription_id", "event_id", name="uq_action_exec_sub_event"),)
+    # Includes attempt_no: the Executor legitimately writes up to two rows
+    # per (subscription_id, event_id) -- one per retry attempt (§11) -- so
+    # the race-safety guarantee this constraint provides is "the same
+    # attempt can't be double-inserted," not "only one row may ever exist
+    # for this pair." See docs/implementation-notes.md for the bug this
+    # fixed (the constraint used to omit attempt_no and crash the second
+    # attempt with an IntegrityError).
+    __table_args__ = (
+        UniqueConstraint("subscription_id", "event_id", "attempt_no", name="uq_action_exec_sub_event_attempt"),
+    )
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
     subscription_id: Mapped[str] = mapped_column(ForeignKey("subscriptions.id"))
