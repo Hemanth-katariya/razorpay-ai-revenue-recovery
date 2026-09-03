@@ -113,4 +113,4 @@ def send_payment_link_notification(payment_link_id: str, medium: str = "email") 
     Payment Links 'Send or Resend Notifications' action, called by
     analogy to the invoice notify-by-medium pattern."""
     client = _get_client()
-    return _safe_call(lambda: client.payment_link.notify_by(payment_link_id, medium))
+    return _safe_call(lambda: client.payment_link.notifyBy(payment_link_id, medium))
