@@ -1,9 +1,19 @@
 # Application Submission Draft
 
 Status: draft text for the Razorpay AI Buildathon application form
-(`docs/hackathon.md`). Fill in the personal fields (name, college,
-graduation year, availability, resume) yourself — everything below is
-project-specific content you can copy in directly or lightly edit.
+(`docs/hackathon.md`). Everything below can be copied directly into the
+form or lightly edited.
+
+---
+
+## Personal details
+
+- **Full name:** Hemanth Katariya
+- **College:** IIT Patna
+- **Graduation year:** 2027
+- **In-person availability from September:** Yes, available from September
+- **6 or 12 month preference:** 6 months
+- **Resume:** _attach on the form — not tracked in this repo_
 
 ---
 
@@ -97,25 +107,55 @@ idempotency — each an independent pure function) gates it, and the
 Executor independently refuses to run anything not marked
 `API_VERIFIED`, even if the gate were ever wrong.
 
-## Honest metrics (fill in after the final demo batch run)
+## Honest metrics (from the final demo batch run)
 
-Report the actual output of `GET /batches/{id}/metrics` after running
-`python -m scripts.replay_batch synthetic_data/events_batch_01.json` —
-do not hand-adjust these numbers. Suggested fields to quote:
+The §4.1 capability spike has been run for real against Razorpay Test
+Mode (`resend_invoice_reminder` and `create_payment_link_and_notify`
+are both `API_VERIFIED`, each promoted only after a real call
+succeeded — see `docs/implementation-notes.md` §7). The numbers below
+are the unedited output of `GET /batches/{id}/metrics` for
+`batch_run_id=f70b34c95bb340b8964e72201d368663`
+(`python -m scripts.replay_batch synthetic_data/events_batch_01.json`),
+so this is the "the agent recovered revenue" claim, not the fallback
+one — every number here is a real Gemini diagnosis and/or a real
+Razorpay Test Mode API call, never simulated or hand-adjusted.
 
-- Revenue at risk detected: `<amount>` across `<count>` subscriptions
-- Revenue recovered: `<amount>` across `<count>` subscriptions (observed
-  via confirming webhook, never inferred from "action sent")
-- Recovery rate: `<recovered/detected>` of detected, `<recovered/attempted>` of attempted
-- Escalation rate: `<count>` (`<share>` of batch), broken down by reason
-- Stop rate: `<count>` (`<share>` of batch), broken down by reason
-- Batch size reconciliation: recovered + stopped + not_recovered + still_open = total batch size
+- **Revenue at risk detected:** ₹1,62,692.00 across 9 subscriptions
+- **Revenue recovered:** ₹1,499.00 across 1 subscription — confirmed by
+  a real `payment.captured` webhook after a real Payment Link was
+  created and its notification sent, never inferred from "action sent"
+- **Recovery rate:** 11.1% of detected (1/9), 14.3% of attempted (1/7 —
+  "attempted" means the subscription's pipeline actually reached
+  `EXECUTING` and made a real Razorpay Test Mode call, whether or not
+  that call ultimately succeeded)
+- **Escalation rate:** 3 (33.3% of batch), by reason: `low_confidence`
+  1, `no_recommended_action` 1, `executor_failure` 1 — the
+  `executor_failure` case is a subscription whose diagnosed action
+  (`resend_invoice_reminder`) was real and verified, but both retry
+  attempts genuinely failed against Razorpay because the synthetic
+  event referenced an invoice ID that doesn't exist in Test Mode; the
+  system recorded both real failures and escalated cleanly rather than
+  faking a success
+- **Stop rate:** 1 (11.1% of batch), by reason: `attempt_count=3 >= 3`
+  (the attempt-cap gate correctly stopping a subscription that had
+  already failed 3 times)
+- **Batch size reconciliation:** 1 recovered + 1 stopped + 7
+  not_recovered + 0 still_open = 9 total — every subscription in the
+  batch is accounted for, none left open
 
-If the §4.1 capability spike (see README) has not been run before the
-demo is recorded, say so plainly rather than letting the numbers imply
-otherwise: escalation rate will be 100% of detected failures, and
-"recovered" will only reflect subscriptions whose payment was later
-observed independent of any action this system took. That's still an
-honest, defensible number — it's just a different claim than "the agent
-recovered revenue," and the application should say which one it's
-making.
+![RecoverFlow dashboard for this batch run](dashboard.png)
+
+*(Screenshot above is `docs/dashboard.png` — the live operations
+dashboard for `batch_run_id=f70b34c95bb340b8964e72201d368663`, the same
+run the numbers above are quoted from.)*
+
+One thing worth saying plainly in the application: getting to this
+point required diagnosing and fixing two real, previously-undiscovered
+bugs that only a genuine `EXECUTING` state could surface — a Razorpay
+SDK method-name mismatch (`notify_by` vs `notifyBy`) and a database
+unique constraint that omitted a column the Executor's own retry logic
+depended on (see `docs/implementation-notes.md` §10 and §9). Both were
+found and fixed by actually running the system end-to-end against live
+Test Mode APIs, not by code review — which is itself a small argument
+for why this project treats "does the demo run for real" as the bar,
+not "does it look right."

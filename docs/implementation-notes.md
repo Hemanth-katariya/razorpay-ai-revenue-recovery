@@ -240,3 +240,28 @@ updated to state the constraint is per-attempt, not per-pair, and to
 clarify that preventing a second full execution *sequence* for an
 already-executed event is the read-side idempotency gate's job, not
 something the DB constraint alone guarantees.
+
+## 10. `app.razorpay_client.send_payment_link_notification` called a method that doesn't exist
+
+Found by the §4.1 spike's first real run against Razorpay Test Mode,
+not by code review. `create_payment_link` succeeded (real Payment Link
+created), but the notify step raised `AttributeError: 'PaymentLink'
+object has no attribute 'notify_by'`.
+
+The installed `razorpay` SDK names this action inconsistently across
+resources: `Invoice.notify_by` (snake_case) but
+`PaymentLink.notifyBy` (camelCase) — same signature
+(`(id, medium, **kwargs)`), different name, an inconsistency in the SDK
+itself rather than a version mismatch. `resend_invoice_notification`
+(which calls `Invoice.notify_by`) was correct; only the Payment Link
+side was wrong.
+
+**Decision:** fixed the one call site
+(`client.payment_link.notify_by` → `client.payment_link.notifyBy`) and
+re-ran the spike for real, which then succeeded and promoted
+`create_payment_link_and_notify` to `API_VERIFIED`. No test caught this
+beforehand because nothing in the test suite calls the real SDK method
+names — `app/razorpay_client/client.py` is explicitly the one module
+allowed to touch the network (module docstring), so its correctness
+against the actual installed SDK can only be confirmed by a real call,
+which is exactly what the §4.1 spike is for.

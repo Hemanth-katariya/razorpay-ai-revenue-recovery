@@ -92,8 +92,10 @@ def compute_metrics(db: Session, *, batch_run_id: str) -> dict:
     ]
     confidence_buckets = Counter()
     for c in confidences:
-        bucket = f"{int(c * 10) * 10}-{int(c * 10) * 10 + 10}%"
-        confidence_buckets[bucket] += 1
+        # min(..., 90): confidence is capped at 1.0 (schemas.py), so the top
+        # bucket is "90-100%", not "100-110%" for a perfect-confidence score.
+        floor = min(int(c * 10) * 10, 90)
+        confidence_buckets[f"{floor}-{floor + 10}%"] += 1
 
     return {
         "batch_run_id": batch_run_id,
