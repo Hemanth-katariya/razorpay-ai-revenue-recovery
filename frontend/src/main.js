@@ -58,7 +58,6 @@ async function loadViewData(view) {
       case 'subscriptions': await loadSubscriptionsList(); break;
       case 'metrics': await loadMetrics(); break;
       case 'escalations': await loadEscalations(); break;
-      case 'audit': break; // loaded when subscription is selected
     }
   } catch (e) {
     console.error('Failed to load view data:', e);
