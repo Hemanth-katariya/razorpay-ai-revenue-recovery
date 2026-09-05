@@ -104,7 +104,7 @@ Real numbers from `GET /batches/{id}/metrics` on `batch_run_id=f70b34c95bb340b89
 |--------|-------|
 | Revenue at risk detected | ₹1,62,692 across 9 subscriptions |
 | Revenue recovered | ₹1,499 across 1 subscription |
-| Recovery rate | 11.1% of detected (1/9) |
+| Recovery rate | 11.1% of detected (1/9 **subscriptions**) — count-based, not revenue |
 | Escalation rate | 33.3% — reasons: `low_confidence`, `no_recommended_action`, `executor_failure` |
 | Stop rate | 11.1% — reason: `attempt_count >= 3` |
 | Batch reconciliation | 1 + 1 + 7 + 0 = 9 ✓ (nothing left open) |

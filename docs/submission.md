@@ -124,10 +124,14 @@ Razorpay Test Mode API call, never simulated or hand-adjusted.
 - **Revenue recovered:** ₹1,499.00 across 1 subscription — confirmed by
   a real `payment.captured` webhook after a real Payment Link was
   created and its notification sent, never inferred from "action sent"
-- **Recovery rate:** 11.1% of detected (1/9), 14.3% of attempted (1/7 —
-  "attempted" means the subscription's pipeline actually reached
-  `EXECUTING` and made a real Razorpay Test Mode call, whether or not
-  that call ultimately succeeded)
+- **Recovery rate (subscription count):** 11.1% of detected (1/9
+  subscriptions), 14.3% of attempted (1/7 — "attempted" means the
+  subscription's pipeline actually reached `EXECUTING` and made a real
+  Razorpay Test Mode call, whether or not that call ultimately succeeded).
+  Note: this is a *count* rate, not a revenue rate. Revenue recovered
+  (₹1,499) as a share of revenue at risk (₹1,62,692) is ~0.9% — the
+  low revenue rate is expected given the one recovered subscription
+  happened to be the lowest-value one in the batch.
 - **Escalation rate:** 3 (33.3% of batch), by reason: `low_confidence`
   1, `no_recommended_action` 1, `executor_failure` 1 — the
   `executor_failure` case is a subscription whose diagnosed action
