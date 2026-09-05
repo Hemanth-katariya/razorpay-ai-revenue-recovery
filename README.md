@@ -1,45 +1,50 @@
 # RecoverFlow — AI Revenue Recovery Orchestrator
 
-Razorpay AI Buildathon · Track 03 — AI Revenue Recovery
+> **Razorpay AI Buildathon · Track 03 — AI Revenue Recovery**
 
-A failed-subscription recovery agent. When a Razorpay subscription charge
-fails, RecoverFlow detects it, has an LLM diagnose the failure and
-recommend a recovery action from a closed allow-list, runs that action
-through deterministic policy gates (attempt cap, cooldown, exposure cap,
-idempotency), executes it against Razorpay Test Mode only if it has been
-verified to actually work, and reports — across a full synthetic batch,
-including every escalation and stop — how much revenue was recovered.
+![Python](https://img.shields.io/badge/Python-3.11+-blue?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688?logo=fastapi&logoColor=white)
+![Tests](https://img.shields.io/badge/Tests-34%20passing-brightgreen?logo=pytest&logoColor=white)
+![LLM](https://img.shields.io/badge/LLM-Gemini%20Flash-orange?logo=google&logoColor=white)
+![Mode](https://img.shields.io/badge/Razorpay-Test%20Mode%20Only-blue)
 
-Full design rationale lives in [`docs/`](docs/); start with
-[`docs/decision.md`](docs/decision.md) (why this track/problem) and
-[`docs/product-spec.md`](docs/product-spec.md) (what the system does).
+When a Razorpay subscription charge fails, RecoverFlow **detects** the failure, **diagnoses** it with Gemini, runs the recommendation through **deterministic policy gates**, and **executes** a real recovery action against Razorpay Test Mode — or escalates to a human queue if anything is uncertain. Every decision is logged in an append-only audit trail. Every metric is honest.
 
-## Why this is narrower than a typical "recovery agent" pitch
+---
 
-[`docs/recovery-feasibility.md`](docs/recovery-feasibility.md) documents
-that Razorpay has **no API to force a subscription retry** and **no
-confirmed API to change a payment method or re-authorize a mandate** —
-both are Dashboard-only or unsupported. The only concretely executable
-recovery actions are notification-based (resend an invoice reminder,
-or create + notify a Payment Link). The system is built to that
-constraint honestly: it never claims an action worked without an
-observed Razorpay response, and it never claims a subscription
-"recovered" without a later webhook confirming payment.
+## Why This Is Scoped the Way It Is
+
+Most "recovery agent" pitches assume you can force a Razorpay retry or re-authorize a mandate via API. **You can't.**
+
+[`docs/recovery-feasibility.md`](docs/recovery-feasibility.md) maps every candidate recovery action against Razorpay's actual documented APIs — researched before a single line of product spec was written:
+
+| Action | Status |
+|--------|--------|
+| Force-trigger automatic retry | ❌ `NOT_SUPPORTED` — system-scheduled only |
+| Change payment method / re-authorize mandate | ❌ `NOT_SUPPORTED` — no confirmed endpoint |
+| "Charge this now" button | ❌ `DASHBOARD_ONLY` — not an API call |
+| Resend invoice reminder | ✅ `API_VERIFIED` |
+| Create Payment Link + notify customer | ✅ `API_VERIFIED` |
+
+The system is scoped honestly to what the API actually supports. It never claims an action worked without an observed Razorpay response, and never marks a subscription `RECOVERED` without a later `payment.captured` webhook confirming it.
+
+---
 
 ## Architecture
 
-Single FastAPI service, SQLite for storage, no queues/workers (batch
-scale doesn't need them — see
-[`docs/architecture.md`](docs/architecture.md) §1). One state machine
-(`DETECTED → DIAGNOSED → GATED → {EXECUTING|ESCALATED|STOPPED} →
-{RECOVERED|NOT_RECOVERED}`) is the single writer of subscription state;
-every transition writes one append-only audit row. The only module that
-calls an LLM is the Diagnosis Service; the only module that calls
-Razorpay is `razorpay_client`. A static, human-reviewed `actions` table
-is the sole source of truth for which actions are safe to run
-unattended — the AI recommends from it, a deterministic gate enforces
-it, and the Executor independently refuses to run anything not marked
-`API_VERIFIED` (defense-in-depth).
+One FastAPI service. One state machine. No queues, no workers.
+
+```
+DETECTED → DIAGNOSED → GATED → EXECUTING  → RECOVERED
+                              ↘ ESCALATED
+                              ↘ STOPPED    → NOT_RECOVERED
+```
+
+**Key design rules:**
+- The **state machine** is the only writer of `current_state` — every other module asks it
+- The **Diagnosis Service** is the only module that calls Gemini
+- The **Razorpay client** is the only module that calls Razorpay
+- The **Executor** independently refuses to run any action not marked `API_VERIFIED`, even if the policy gate passed
 
 ```mermaid
 flowchart TD
@@ -56,9 +61,9 @@ flowchart TD
 
     subgraph GATE ["🔒 Policy Engine — 5 independent gates"]
         G1["① Allow-list\naction must be API_VERIFIED"]
-        G2["② Attempt cap\nattempts \u003c MAX (default 3)"]
+        G2["② Attempt cap\nattempts < MAX (default 3)"]
         G3["③ Cooldown\nno execution within 24 h"]
-        G4["④ Exposure cap\noutstanding \u003c per-sub limit"]
+        G4["④ Exposure cap\noutstanding < per-sub limit"]
         G5["⑤ Idempotency\nevent not already processed"]
         G1 --> G2 --> G3 --> G4 --> G5
     end
@@ -89,134 +94,160 @@ flowchart TD
     style EX fill:#0369a1,color:#fff
 ```
 
-## Repo layout
+---
 
-```
-backend/    FastAPI app, policy engine, AI diagnosis, tests, synthetic data
-frontend/   Vite dashboard: pipeline view, subscription drilldown, metrics, escalation queue
-docs/       Every project-phase document, from competition analysis through architecture
-```
+## Demo Results
 
-## Setup
+Real numbers from `GET /batches/{id}/metrics` on `batch_run_id=f70b34c95bb340b8964e72201d368663` — every diagnosis is a real Gemini call, every execution is a real Razorpay Test Mode API call, nothing simulated.
 
-### Backend
+| Metric | Value |
+|--------|-------|
+| Revenue at risk detected | ₹1,62,692 across 9 subscriptions |
+| Revenue recovered | ₹1,499 across 1 subscription |
+| Recovery rate | 11.1% of detected (1/9) |
+| Escalation rate | 33.3% — reasons: `low_confidence`, `no_recommended_action`, `executor_failure` |
+| Stop rate | 11.1% — reason: `attempt_count >= 3` |
+| Batch reconciliation | 1 + 1 + 7 + 0 = 9 ✓ (nothing left open) |
+
+> Recovery is confirmed by a real `payment.captured` webhook — never inferred from "we sent a message."
+
+---
+
+## Repo Layout
+
+| Directory | Contents |
+|-----------|----------|
+| `backend/` | FastAPI app, state machine, policy engine, AI diagnosis, Razorpay client, tests, synthetic data |
+| `frontend/` | Vite dashboard — pipeline view, subscription drilldown, escalation queue, metrics |
+| `docs/` | Every project-phase document: competition analysis → feasibility → architecture → submission |
+
+---
+
+## Quick Start
+
+### 1. Backend
 
 ```bash
 cd backend
 python -m venv .venv
-.venv\Scripts\activate          # Windows PowerShell: .venv\Scripts\Activate.ps1
+.venv\Scripts\Activate.ps1      # PowerShell (Windows)
 pip install -e ".[dev]"
-copy .env.example .env          # PowerShell: Copy-Item .env.example .env
+Copy-Item .env.example .env
 ```
 
-Edit `backend/.env`:
-- `GEMINI_API_KEY` — required for the Diagnosis Service. Get a free key
-  at [aistudio.google.com](https://aistudio.google.com) (no billing required).
-- `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` — **Test Mode keys only**
-  (Razorpay Dashboard → Test Mode toggle → Settings → API Keys). Only
-  needed once at least one action has been verified (see below) — the
-  app runs fine without them, everything just escalates instead of
-  executing.
-- Everything else has a working default.
+Edit `backend/.env` — the two keys you need:
 
-Run the tests (no external keys required — the AI/Razorpay calls are
-exercised through fakes/mocks in tests that need them):
+| Key | Where to get it |
+|-----|----------------|
+| `GEMINI_API_KEY` | [aistudio.google.com](https://aistudio.google.com) — free, no billing required |
+| `RAZORPAY_KEY_ID` + `RAZORPAY_KEY_SECRET` | Razorpay Dashboard → Test Mode → Settings → API Keys (**Test Mode only**) |
+
+> The app runs without Razorpay keys — every event will correctly route to `ESCALATED` until an action is verified (see [Verification Spike](#verification-spike) below).
 
 ```bash
+# Run tests (no external keys required)
 python -m pytest -q
-```
 
-Run the API:
-
-```bash
+# Start the API
 uvicorn app.main:app --reload
 ```
 
-This also seeds the `actions` table on startup (idempotent — never
-overwrites a status a human already promoted via the verification spike
-below).
-
-### Frontend
+### 2. Frontend
 
 ```bash
 cd frontend
 npm install
 npm run dev
+# Opens on http://localhost:5173
 ```
 
-Opens on `http://localhost:5173` (Vite default), talking to the backend
-at `http://127.0.0.1:8000` (hardcoded in `frontend/src/api.js` — this is
-a local demo tool, not a deployed product).
-
-### Running a demo batch
-
-The frontend only *reads* batches — creating one and feeding it events
-happens through the replay script, which signs each synthetic event
-exactly as a real Razorpay Test Mode webhook would be signed:
+### 3. Run a Demo Batch
 
 ```bash
 cd backend
 python -m scripts.replay_batch synthetic_data/events_batch_01.json --label "demo batch"
 ```
 
-This creates a batch, posts all 14 synthetic events through
-`POST /webhooks/razorpay` in order, closes the batch (forcing any
-still-open subscription to `NOT_RECOVERED`), and prints the metrics
-report. Refresh the frontend and select the new batch from the sidebar
-to see the pipeline, per-subscription audit trails, escalation queue,
-and metrics.
+This signs and posts all 14 synthetic events through `POST /webhooks/razorpay`, closes the batch window, and prints the metrics report. Refresh the frontend to see the full pipeline.
 
-## The capability verification spike (product-spec.md §4.1)
+---
 
-**Before this system can autonomously execute anything, at least one
-action must be promoted from `API_ASSUMED` to `API_VERIFIED` by making
-one real Test Mode call and observing the result.** Until that happens,
-every event correctly routes to `ESCALATED` — this is deliberate, not a
-bug (see [`docs/implementation-notes.md`](docs/implementation-notes.md)
-§2), but it also means the live pipeline can't yet show
-`EXECUTING`/`STOPPED` outside unit tests.
+## Verification Spike
+
+> **Before the system can autonomously execute anything**, at least one action must be promoted from `API_ASSUMED` to `API_VERIFIED` by making one real Test Mode call.
 
 ```bash
 cd backend
+
 # Self-contained — creates and notifies a real Test Mode Payment Link:
 python -m scripts.verify_actions payment_link --promote
 
-# Needs a real invoice_id from your Test Mode account:
+# Requires a real invoice_id from your Test Mode account:
 python -m scripts.verify_actions invoice --list
 python -m scripts.verify_actions invoice --invoice-id inv_XXXXXXXX --promote
 ```
 
-`--promote` only flips the action's DB row to `API_VERIFIED` if the real
-call actually succeeded — it never simulates success. See the script's
-docstring for the full spike-then-promote-then-demo workflow.
+`--promote` only sets `API_VERIFIED` if the real call actually succeeded. It never simulates success.
 
-## Testing
+---
+
+## Tests
 
 ```bash
-cd backend && python -m pytest -q
+cd backend
+python -m pytest -q
 ```
 
-34 tests cover the state machine, policy gates (including a
-manually-promoted `API_VERIFIED` action so `attempt_cap`/`cooldown`/
-`exposure_cap` are exercised independent of whether the live spike has
-run), idempotency, diagnosis schema validation, batch metrics
-reconciliation, audit logging, and full webhook-to-response integration.
+**34 tests** covering:
 
-## What broke, and how it was fixed
+| Area | What's tested |
+|------|--------------|
+| State machine | All legal transitions + `IllegalTransition` on invalid edges |
+| Policy gates | Allow-list, attempt cap, cooldown, exposure cap, idempotency — each as an independent pure function |
+| Diagnosis | Schema validation, low-confidence routing, malformed model response handling |
+| Idempotency | Duplicate event IDs rejected; retry attempts correctly distinguished |
+| Batch metrics | Reconciliation equation always closes |
+| Audit logging | One row per transition, append-only |
+| API integration | Batch-close race condition (`409 Conflict` on stale escalation resolve) |
 
-Documented in full in [`docs/submission.md`](docs/submission.md) for
-the application form. Short version: resolving an escalation whose
-subscription had already been force-closed by the batch-close sweep
-crashed with an unhandled 500 (`state_machine.IllegalTransition`
-propagating past the API layer). Caught by writing an integration test
-for the batch-close race before it was ever manually hit; fixed by
-catching `IllegalTransition` in `POST /escalations/{id}/resolve` and
-returning a clean `409 Conflict` instead. Regression test:
-`backend/tests/test_api_integration.py::test_batch_close_reconciles_open_escalations_and_resolve_returns_409`.
+---
 
-## Non-goals (explicit)
+## What Broke, and How It Was Fixed
 
-No real production payment execution, no forced retries or mandate
-changes (confirmed unsupported by Razorpay), no multi-channel
-notifications, no merchant-facing UI beyond what the demo needs. Full
-list in [`docs/product-spec.md`](docs/product-spec.md) §10.
+**Bug:** Resolving an open escalation for a subscription that had already been force-closed by the batch-close sweep crashed the API with an unhandled `500`.
+
+**Root cause:** `POST /escalations/{id}/resolve` tried to write a `RECOVERED` transition on a subscription already in a terminal state. `state_machine.py`'s `assert_legal()` correctly raised `IllegalTransition`, but nothing in the API layer caught it.
+
+**Fix:** `POST /escalations/{id}/resolve` now catches `IllegalTransition` and returns a clean `409 Conflict`. The batch-close sweep also auto-resolves any still-open escalations it sweeps, so a human never sees an "open" escalation against a subscription that's already closed.
+
+**Regression test:**
+```
+backend/tests/test_api_integration.py
+  ::test_batch_close_reconciles_open_escalations_and_resolve_returns_409
+```
+
+Full write-up in [`docs/submission.md`](docs/submission.md).
+
+---
+
+## Non-Goals
+
+- No production payment execution
+- No forced retries or mandate changes (confirmed unsupported — see [`docs/recovery-feasibility.md`](docs/recovery-feasibility.md))
+- No multi-channel notifications
+- No merchant-facing UI beyond the demo dashboard
+
+Full list in [`docs/product-spec.md`](docs/product-spec.md) §10.
+
+---
+
+## Docs Index
+
+| File | Purpose |
+|------|---------|
+| [`docs/decision.md`](docs/decision.md) | Why Track 03 and this specific problem |
+| [`docs/recovery-feasibility.md`](docs/recovery-feasibility.md) | Which recovery actions are actually API-executable |
+| [`docs/product-spec.md`](docs/product-spec.md) | What the system does and doesn't do |
+| [`docs/architecture.md`](docs/architecture.md) | Full technical design |
+| [`docs/implementation-notes.md`](docs/implementation-notes.md) | Decisions made during coding, bugs found and fixed |
+| [`docs/submission.md`](docs/submission.md) | Application form draft with honest metrics |
