@@ -26,7 +26,7 @@ constraint honestly: it never claims an action worked without an
 observed Razorpay response, and it never claims a subscription
 "recovered" without a later webhook confirming payment.
 
-## Architecture in one paragraph
+## Architecture
 
 Single FastAPI service, SQLite for storage, no queues/workers (batch
 scale doesn't need them — see
@@ -40,6 +40,54 @@ is the sole source of truth for which actions are safe to run
 unattended — the AI recommends from it, a deterministic gate enforces
 it, and the Executor independently refuses to run anything not marked
 `API_VERIFIED` (defense-in-depth).
+
+```mermaid
+flowchart TD
+    W(["☁️ Razorpay Webhook\npayment.failed / subscription.halted"])
+    W --> ING["Ingestion API\nverify HMAC signature"]
+
+    ING --> SM1["State Machine\nDETECTED"]
+
+    SM1 --> DIAG["Diagnosis Service\n🤖 Gemini — forced tool-call\nemit_diagnosis: category + confidence + action"]
+
+    DIAG --> SM2["State Machine\nDIAGNOSED"]
+
+    SM2 --> GATE["Policy Engine — deterministic gates"]
+
+    subgraph GATE ["🔒 Policy Engine — 5 independent gates"]
+        G1["① Allow-list\naction must be API_VERIFIED"]
+        G2["② Attempt cap\nattempts \u003c MAX (default 3)"]
+        G3["③ Cooldown\nno execution within 24 h"]
+        G4["④ Exposure cap\noutstanding \u003c per-sub limit"]
+        G5["⑤ Idempotency\nevent not already processed"]
+        G1 --> G2 --> G3 --> G4 --> G5
+    end
+
+    GATE -->|all gates pass| SM3["State Machine\nEXECUTING"]
+    GATE -->|allow-list fails| ESC
+    GATE -->|attempt cap fails| STP
+    GATE -->|low confidence / no action| ESC
+
+    SM3 --> EX["Executor\ncall Razorpay Test Mode API"]
+
+    EX -->|API call succeeded| OBS["Outcome Observer\nwait for payment.captured webhook"]
+    EX -->|both attempts failed| ESC
+
+    OBS -->|webhook confirmed| SM4["✅ RECOVERED"]
+    OBS -->|batch window closes| SM5["❌ NOT_RECOVERED"]
+
+    ESC["⚠️ ESCALATED\nhuman queue — logged reason"]
+    STP["🛑 STOPPED\nattempt cap / cooldown / exposure"]
+
+    SM4 & SM5 & ESC & STP --> AUD["Append-only Audit Log\none row per transition"]
+
+    style SM4 fill:#16a34a,color:#fff
+    style SM5 fill:#dc2626,color:#fff
+    style ESC fill:#d97706,color:#fff
+    style STP fill:#7c3aed,color:#fff
+    style DIAG fill:#0369a1,color:#fff
+    style EX fill:#0369a1,color:#fff
+```
 
 ## Repo layout
 
@@ -62,7 +110,8 @@ copy .env.example .env          # PowerShell: Copy-Item .env.example .env
 ```
 
 Edit `backend/.env`:
-- `ANTHROPIC_API_KEY` — required for the Diagnosis Service.
+- `GEMINI_API_KEY` — required for the Diagnosis Service. Get a free key
+  at [aistudio.google.com](https://aistudio.google.com) (no billing required).
 - `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` — **Test Mode keys only**
   (Razorpay Dashboard → Test Mode toggle → Settings → API Keys). Only
   needed once at least one action has been verified (see below) — the
