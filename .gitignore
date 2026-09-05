@@ -53,3 +53,8 @@ dist-ssr/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Submission Drafts & Personal Files (Not for Panelists)
+docs/demo-script.md
+docs/submission.md
+docs/hackathon.md
